@@ -1,0 +1,569 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce" xmlns:tls="http://www.mulesoft.org/schema/mule/tls" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd 
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd">
+    <http:listener-config name="sf-system-api-httpsListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="${secure::con.port}" protocol="HTTPS" tlsContext="TLS_Context"/>
+    </http:listener-config>
+    <apikit:config name="sf-system-api-config" api="sf-system-api.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+    <tls:context name="TLS_Context" doc:name="TLS Context" doc:id="f246eb3b-0916-4e2e-9bd9-732b2afcee66" >
+		<tls:key-store type="jks" path="${secure::key.path}" alias="${secure::key.alias}" keyPassword="${secure::key.pass}" password="${secure::key.pass}" />
+	</tls:context>
+	<salesforce:sfdc-config name="Salesforce_Config" doc:name="Salesforce Config" doc:id="fc117dee-8a69-4fe1-b1bf-37be7394a603" >
+		<salesforce:basic-connection username="${secure::sf.user}" password="${secure::sf.pass}" securityToken="${secure::sf.token}" />
+	</salesforce:sfdc-config>
+	<flow name="sf-system-api-main">
+        <http:listener config-ref="sf-system-api-httpsListenerConfig" path="/api/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body><![CDATA[#[payload]]]></http:body>
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:router config-ref="sf-system-api-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:BAD_REQUEST">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Bad request",
+	details: error.description
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[400]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Resource not found",
+	details: error.description
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[404]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:METHOD_NOT_ALLOWED">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Method not allowed",
+	details: error.description
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[405]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_ACCEPTABLE">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not acceptable"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">406</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:UNSUPPORTED_MEDIA_TYPE">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Unsupported media type",
+	details: error.description
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[415]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_IMPLEMENTED">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Not Implemented",
+	details: error.description
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[501]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="sf-system-api-console">
+        <http:listener config-ref="sf-system-api-httpsListenerConfig" path="/console/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body><![CDATA[#[payload]]]></http:body>
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:console config-ref="sf-system-api-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Resource not found",
+	details: error.description
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[404]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="delete:\case\(id):sf-system-api-config">
+        <ee:transform doc:name="Transform Message">
+            <ee:variables>
+                <ee:set-variable variableName="id">attributes.uriParams.'id'</ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Case Deleted"
+} as Object {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="patch:\case\(id)\attatchments:multipart\form-data:sf-system-api-config">
+        <ee:transform doc:name="Transform Message">
+            <ee:variables>
+                <ee:set-variable variableName="id">attributes.uriParams.'id'</ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Case Updated"
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="patch:\case\(id):multipart\form-data:sf-system-api-config">
+        <ee:transform doc:name="Transform Message">
+            <ee:variables>
+                <ee:set-variable variableName="id">attributes.uriParams.'id'</ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Case Updated"
+} as Object {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="get:\case:sf-system-api-config">
+        <salesforce:query doc:name="Query" doc:id="862b1463-a6e3-4cf8-9569-65877c92df30" config-ref="Salesforce_Config">
+			<salesforce:salesforce-query ><![CDATA[SELECT
+	ID
+FROM Case]]></salesforce:salesforce-query>
+		</salesforce:query>
+		<ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	size: sizeOf(payload),
+	data: payload
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="f5b271aa-40ce-4c0b-b8b0-a0758e93c787" >
+				<ee:transform doc:name="Transform Message" doc:id="7493c905-f86c-4d43-9e85-cc64a7029be8" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Unknown Error. Please Try Later",
+	details: error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+    </flow>
+    <flow name="get:\accounts:sf-system-api-config">
+        <ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+[
+  {
+    ID: 1,
+    CaseNumber: 1,
+    AccountId: "977036673-0",
+    Subject: "turpis eget elit sodales scelerisque mauris sit amet eros suspendisse accumsan tortor quis turpis",
+    Description: "vehicula consequat morbi a ipsum integer a nibh in quis justo maecenas rhoncus aliquam lacus morbi quis tortor id",
+    Status: "Pink",
+    Priority: "Violet",
+    ContactId: "955490485-1",
+    Origin: "Puce",
+    CreatedDate: "12/27/2022",
+    ClosedDate: "5/31/2023"
+  }, 
+  {
+    ID: 2,
+    CaseNumber: 2,
+    AccountId: "184964135-8",
+    Subject: "aliquam quis turpis eget elit sodales scelerisque mauris sit amet eros suspendisse accumsan tortor quis turpis",
+    Description: "viverra dapibus nulla suscipit ligula in lacus curabitur at ipsum ac tellus semper",
+    Status: "Teal",
+    Priority: "Purple",
+    ContactId: "105936429-8",
+    Origin: "Blue",
+    CreatedDate: "2/17/2023",
+    ClosedDate: "1/21/2023"
+  }, 
+  {
+    ID: 3,
+    CaseNumber: 3,
+    AccountId: "631017079-1",
+    Subject: "nulla justo aliquam quis turpis eget elit sodales scelerisque mauris sit amet eros suspendisse accumsan tortor quis turpis",
+    Description: "neque duis bibendum morbi non quam nec dui luctus rutrum nulla tellus in sagittis dui vel nisl duis",
+    Status: "Blue",
+    Priority: "Orange",
+    ContactId: "538338006-X",
+    Origin: "Fuscia",
+    CreatedDate: "7/8/2023",
+    ClosedDate: "12/28/2022"
+  }, 
+  {
+    ID: 4,
+    CaseNumber: 4,
+    AccountId: "493989633-1",
+    Subject: "consequat morbi a ipsum integer a nibh in quis justo maecenas rhoncus aliquam lacus",
+    Description: "neque libero convallis eget eleifend luctus ultricies eu nibh quisque id justo sit amet",
+    Status: "Aquamarine",
+    Priority: "Purple",
+    ContactId: "521813450-3",
+    Origin: "Indigo",
+    CreatedDate: "4/30/2023",
+    ClosedDate: "5/19/2023"
+  }, 
+  {
+    ID: 5,
+    CaseNumber: 5,
+    AccountId: "797429870-7",
+    Subject: "orci vehicula condimentum curabitur in libero ut massa volutpat convallis morbi odio odio",
+    Description: "est risus auctor sed tristique in tempus sit amet sem fusce consequat nulla",
+    Status: "Teal",
+    Priority: "Orange",
+    ContactId: "788554681-0",
+    Origin: "Fuscia",
+    CreatedDate: "11/10/2022",
+    ClosedDate: "8/3/2022"
+  }, 
+  {
+    ID: 6,
+    CaseNumber: 6,
+    AccountId: "412139559-X",
+    Subject: "pede justo lacinia eget tincidunt eget tempus vel pede morbi porttitor lorem id ligula suspendisse ornare consequat",
+    Description: "at nulla suspendisse potenti cras in purus eu magna vulputate luctus cum sociis natoque",
+    Status: "Fuscia",
+    Priority: "Red",
+    ContactId: "350890357-5",
+    Origin: "Maroon",
+    CreatedDate: "6/2/2023",
+    ClosedDate: "11/13/2022"
+  }, 
+  {
+    ID: 7,
+    CaseNumber: 7,
+    AccountId: "486075521-9",
+    Subject: "ut mauris eget massa tempor convallis nulla neque libero convallis eget eleifend luctus ultricies eu nibh quisque id justo",
+    Description: "ridiculus mus etiam vel augue vestibulum rutrum rutrum neque aenean auctor gravida sem praesent id massa id nisl venenatis lacinia",
+    Status: "Blue",
+    Priority: "Khaki",
+    ContactId: "162316785-X",
+    Origin: "Mauv",
+    CreatedDate: "9/20/2022",
+    ClosedDate: "4/9/2023"
+  }, 
+  {
+    ID: 8,
+    CaseNumber: 8,
+    AccountId: "338612325-2",
+    Subject: "lobortis est phasellus sit amet erat nulla tempus vivamus in felis eu sapien cursus vestibulum proin",
+    Description: "nunc rhoncus dui vel sem sed sagittis nam congue risus semper",
+    Status: "Pink",
+    Priority: "Red",
+    ContactId: "561377246-0",
+    Origin: "Turquoise",
+    CreatedDate: "10/11/2022",
+    ClosedDate: "8/1/2022"
+  }, 
+  {
+    ID: 9,
+    CaseNumber: 9,
+    AccountId: "901658528-1",
+    Subject: "at nulla suspendisse potenti cras in purus eu magna vulputate luctus cum sociis natoque",
+    Description: "facilisi cras non velit nec nisi vulputate nonummy maecenas tincidunt lacus at velit vivamus vel nulla",
+    Status: "Yellow",
+    Priority: "Crimson",
+    ContactId: "525220402-0",
+    Origin: "Red",
+    CreatedDate: "3/17/2023",
+    ClosedDate: "3/17/2023"
+  }, 
+  {
+    ID: 10,
+    CaseNumber: 10,
+    AccountId: "722263531-9",
+    Subject: "vivamus vel nulla eget eros elementum pellentesque quisque porta volutpat erat quisque erat eros viverra eget congue eget semper rutrum",
+    Description: "fermentum justo nec condimentum neque sapien placerat ante nulla justo aliquam quis turpis eget elit sodales scelerisque mauris sit",
+    Status: "Puce",
+    Priority: "Crimson",
+    ContactId: "113243906-X",
+    Origin: "Khaki",
+    CreatedDate: "10/16/2022",
+    ClosedDate: "2/23/2023"
+  }
+] as Array {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="get:\contacts:sf-system-api-config">
+        <ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+[
+  {
+    ID: 1,
+    CaseNumber: 1,
+    AccountId: "977036673-0",
+    Subject: "turpis eget elit sodales scelerisque mauris sit amet eros suspendisse accumsan tortor quis turpis",
+    Description: "vehicula consequat morbi a ipsum integer a nibh in quis justo maecenas rhoncus aliquam lacus morbi quis tortor id",
+    Status: "Pink",
+    Priority: "Violet",
+    ContactId: "955490485-1",
+    Origin: "Puce",
+    CreatedDate: "12/27/2022",
+    ClosedDate: "5/31/2023"
+  }, 
+  {
+    ID: 2,
+    CaseNumber: 2,
+    AccountId: "184964135-8",
+    Subject: "aliquam quis turpis eget elit sodales scelerisque mauris sit amet eros suspendisse accumsan tortor quis turpis",
+    Description: "viverra dapibus nulla suscipit ligula in lacus curabitur at ipsum ac tellus semper",
+    Status: "Teal",
+    Priority: "Purple",
+    ContactId: "105936429-8",
+    Origin: "Blue",
+    CreatedDate: "2/17/2023",
+    ClosedDate: "1/21/2023"
+  }, 
+  {
+    ID: 3,
+    CaseNumber: 3,
+    AccountId: "631017079-1",
+    Subject: "nulla justo aliquam quis turpis eget elit sodales scelerisque mauris sit amet eros suspendisse accumsan tortor quis turpis",
+    Description: "neque duis bibendum morbi non quam nec dui luctus rutrum nulla tellus in sagittis dui vel nisl duis",
+    Status: "Blue",
+    Priority: "Orange",
+    ContactId: "538338006-X",
+    Origin: "Fuscia",
+    CreatedDate: "7/8/2023",
+    ClosedDate: "12/28/2022"
+  }, 
+  {
+    ID: 4,
+    CaseNumber: 4,
+    AccountId: "493989633-1",
+    Subject: "consequat morbi a ipsum integer a nibh in quis justo maecenas rhoncus aliquam lacus",
+    Description: "neque libero convallis eget eleifend luctus ultricies eu nibh quisque id justo sit amet",
+    Status: "Aquamarine",
+    Priority: "Purple",
+    ContactId: "521813450-3",
+    Origin: "Indigo",
+    CreatedDate: "4/30/2023",
+    ClosedDate: "5/19/2023"
+  }, 
+  {
+    ID: 5,
+    CaseNumber: 5,
+    AccountId: "797429870-7",
+    Subject: "orci vehicula condimentum curabitur in libero ut massa volutpat convallis morbi odio odio",
+    Description: "est risus auctor sed tristique in tempus sit amet sem fusce consequat nulla",
+    Status: "Teal",
+    Priority: "Orange",
+    ContactId: "788554681-0",
+    Origin: "Fuscia",
+    CreatedDate: "11/10/2022",
+    ClosedDate: "8/3/2022"
+  }, 
+  {
+    ID: 6,
+    CaseNumber: 6,
+    AccountId: "412139559-X",
+    Subject: "pede justo lacinia eget tincidunt eget tempus vel pede morbi porttitor lorem id ligula suspendisse ornare consequat",
+    Description: "at nulla suspendisse potenti cras in purus eu magna vulputate luctus cum sociis natoque",
+    Status: "Fuscia",
+    Priority: "Red",
+    ContactId: "350890357-5",
+    Origin: "Maroon",
+    CreatedDate: "6/2/2023",
+    ClosedDate: "11/13/2022"
+  }, 
+  {
+    ID: 7,
+    CaseNumber: 7,
+    AccountId: "486075521-9",
+    Subject: "ut mauris eget massa tempor convallis nulla neque libero convallis eget eleifend luctus ultricies eu nibh quisque id justo",
+    Description: "ridiculus mus etiam vel augue vestibulum rutrum rutrum neque aenean auctor gravida sem praesent id massa id nisl venenatis lacinia",
+    Status: "Blue",
+    Priority: "Khaki",
+    ContactId: "162316785-X",
+    Origin: "Mauv",
+    CreatedDate: "9/20/2022",
+    ClosedDate: "4/9/2023"
+  }, 
+  {
+    ID: 8,
+    CaseNumber: 8,
+    AccountId: "338612325-2",
+    Subject: "lobortis est phasellus sit amet erat nulla tempus vivamus in felis eu sapien cursus vestibulum proin",
+    Description: "nunc rhoncus dui vel sem sed sagittis nam congue risus semper",
+    Status: "Pink",
+    Priority: "Red",
+    ContactId: "561377246-0",
+    Origin: "Turquoise",
+    CreatedDate: "10/11/2022",
+    ClosedDate: "8/1/2022"
+  }, 
+  {
+    ID: 9,
+    CaseNumber: 9,
+    AccountId: "901658528-1",
+    Subject: "at nulla suspendisse potenti cras in purus eu magna vulputate luctus cum sociis natoque",
+    Description: "facilisi cras non velit nec nisi vulputate nonummy maecenas tincidunt lacus at velit vivamus vel nulla",
+    Status: "Yellow",
+    Priority: "Crimson",
+    ContactId: "525220402-0",
+    Origin: "Red",
+    CreatedDate: "3/17/2023",
+    ClosedDate: "3/17/2023"
+  }, 
+  {
+    ID: 10,
+    CaseNumber: 10,
+    AccountId: "722263531-9",
+    Subject: "vivamus vel nulla eget eros elementum pellentesque quisque porta volutpat erat quisque erat eros viverra eget congue eget semper rutrum",
+    Description: "fermentum justo nec condimentum neque sapien placerat ante nulla justo aliquam quis turpis eget elit sodales scelerisque mauris sit",
+    Status: "Puce",
+    Priority: "Crimson",
+    ContactId: "113243906-X",
+    Origin: "Khaki",
+    CreatedDate: "10/16/2022",
+    ClosedDate: "2/23/2023"
+  }
+] as Array {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="get:\case\(id):sf-system-api-config">
+        <ee:transform doc:name="Transform Message">
+            <ee:variables>
+                <ee:set-variable variableName="id">attributes.uriParams.'id'</ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  ID: 1,
+  CaseNumber: 1,
+  AccountId: "9770366730",
+  Subject: "turpis eget elit sodales scelerisque mauris sit amet eros suspendisse accumsan tortor quis turpis",
+  Description: "vehicula consequat morbi a ipsum integer a nibh in quis justo maecenas rhoncus aliquam lacus morbi quis tortor id",
+  Status: "Pink",
+  Priority: "Violet",
+  ContactId: "9554904851",
+  Origin: "Puce",
+  CreatedDate: "12/27/2022",
+  ClosedDate: "5/31/2023"
+} as Object {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="post:\case:multipart\form-data:sf-system-api-config">
+        <ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Case Created"
+} as Object {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="post:\import:application\csv:sf-system-api-config">
+        <ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Cases Imported"
+} as Object {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+</mule>

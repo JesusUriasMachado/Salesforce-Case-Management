@@ -1,0 +1,13 @@
+{
+  "ID": 1,
+  "CaseNumber": 1,
+  "AccountId": "9770366730",
+  "Subject": "turpis eget elit sodales scelerisque mauris sit amet eros suspendisse accumsan tortor quis turpis",
+  "Description": "vehicula consequat morbi a ipsum integer a nibh in quis justo maecenas rhoncus aliquam lacus morbi quis tortor id",
+  "Status": "Pink",
+  "Priority": "Violet",
+  "ContactId": "9554904851",
+  "Origin": "Puce",
+  "CreatedDate": "12/27/2022",
+  "ClosedDate": "5/31/2023"
+}

@@ -1,0 +1,148 @@
+#%RAML 1.0
+title: sf-system-api
+description:
+baseUri: http://{host}:{port}/api/
+protocols: [http]
+traits:
+  responses: !include traits/responses.raml
+  hasHeaders: !include traits/hasHeaders.raml
+
+/case:
+  description: Use To Manage Salesforce's Cases
+  displayName: Case Panel
+  get:
+    description: Used To Get All Cases
+    displayName: Get All Cases
+    is:
+      - responses
+      - hasHeaders
+    responses:
+      200:
+        body:
+          application/json:
+            example: !include examples/case/get.json
+  post:
+    description: Used To Post ONE Case
+    displayName: Post Case
+    is:
+      - hasHeaders
+      - responses
+    body:
+      multipart/form-data:
+        type: !include datatypes/case/post.raml
+        example: !include examples/case/getOne.json
+    responses:
+      201:
+        body:
+          application/json:
+            example: !include examples/case/post.json
+  /{id}:
+    description: Used To Manage A Single Case
+    displayName: Single Case Panel
+    get:
+      is:
+        - hasHeaders
+        - responses
+      description: Used To Get ONE Case
+      displayName: Get One
+      responses:
+        200:
+          body:
+            application/json:
+              example: !include examples/case/getOne.json
+    patch:
+      is:
+        - hasHeaders
+        - responses
+      description: Used To Update A Case
+      displayName: Update Case
+      body:
+        multipart/form-data:
+          type: !include datatypes/case/post.raml
+      responses:
+        201:
+          body:
+            application/json:
+              example: !include examples/case/patch.json
+    delete:
+      is:
+        - hasHeaders
+        - responses
+      description: Used To Delete Case
+      displayName: Delete Case
+      responses:
+        200:
+          body:
+            application/json:
+              example: !include examples/case/delete.json
+    /attatchments:
+      patch:
+        is:
+          - hasHeaders
+          - responses
+        description: Used To Add An Attatchment
+        displayName: Add Attatchment To Case
+        body:
+          multipart/form-data:
+            type: !include datatypes/case/documentUpload.raml
+        responses:
+          201:
+            body:
+              application/json:
+                example: !include examples/case/patch.json
+
+/import:
+  description: Used To Manage Salesforce's Imports
+  displayName: Import Panel
+  post:
+    is:
+      - hasHeaders
+      - responses
+    description: Used To Import Cases
+    displayName: Import Cases
+    body:
+      application/csv:
+        example: !include examples/import/post.csv
+    responses:
+      201:
+        body:
+          application/json:
+            example: !include examples/import/post.json
+
+/accounts:
+  description: Used To Manage Cases' Accounts
+  displayName: Get Accounts
+  get:
+    is:
+      - hasHeaders
+      - responses
+    description: Used To Get Accounts' Cases
+    displayName: Get Accounts
+    queryParameters:
+      accounts:
+        type: string
+        required: true
+    responses:
+      200:
+        body:
+          application/json:
+            example: !include examples/case/get.json
+
+/contacts:
+  description: Used To Manage Cases' Contacts
+  displayName: Get Contacts
+  get:
+    is:
+      - hasHeaders
+      - responses
+    description: Used to Get Contacts' Cases
+    displayName: Get Contacts
+    queryParameters:
+      contacts:
+        required: true
+        type: string
+    responses:
+      200:
+        body:
+          application/json:
+            example: !include examples/case/get.json

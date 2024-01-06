@@ -1,0 +1,34 @@
+#%RAML 1.0 DataType
+#AGREGAR EL DATATYPE DEL OBJETO CASE
+type: object
+properties:
+  AccountId:
+    type: string
+    required: false
+  Subject:
+    type: string
+    required: false
+  Description:
+    type: string
+    required: false
+  Status:
+    type: string
+    required: false
+  Priority:
+    type: string
+    required: false
+  ContactId:
+    type: string
+    required: false
+  Origin:
+    type: string
+    required: true
+  CreatedDate:
+    type: string
+    required: false
+  ClosedDate:
+    type: string
+    required: false
+  file:
+    type: !include file.raml
+    required: false
