@@ -543,7 +543,7 @@ output application/json
         </ee:transform>
     </flow>
     <flow name="post:\case:multipart\form-data:sf-system-api-config">
-        <ee:transform doc:name="Transform Message">
+		<ee:transform doc:name="Read Payload Parts">
             <ee:message>
                 <ee:set-payload><![CDATA[%dw 2.0
 output application/json
@@ -551,7 +551,70 @@ output application/json
 payload.parts]]></ee:set-payload>
             </ee:message>
         </ee:transform>
-		<set-variable value="#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	&#10;}]" doc:name="Set Case" doc:id="d6f8c842-fbd7-4134-bfea-742071fe04f1" variableName="case"/>
+		<scatter-gather doc:name="Scatter-Gather" doc:id="2778d53f-3042-4efa-9a68-47cfc9916d61" >
+			<route >
+				<set-variable value='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;  	fileContent : payload.File.content,&#10;  	fileName : payload.File.headers."Content-Disposition".filename&#10;  }]' doc:name="Set File" doc:id="90a00383-1960-4440-8e4e-474d3d62c07a" variableName="File" />
+			</route>
+			<route >
+				<set-variable value="#[%dw 2.0&#10;output application/json&#10;---&#10;[{&#10;	AccountId : payload.AccountId.content,&#10;  Subject : payload.Subject.content,&#10;  Description : payload.Description.content,&#10;  Status : payload.Status.content,&#10;  Priority : payload.Priority.content,&#10;  ContactId : payload.ContactId.content,&#10;  Origin : payload.Origin.content,&#10;  CreatedDate : payload.CreatedDate.content,&#10;  ClosedDate : payload.ClosedDate.content&#10;}]]" doc:name="Set Case" doc:id="d6f8c842-fbd7-4134-bfea-742071fe04f1" variableName="case" />
+			</route>
+		</scatter-gather>
+		<salesforce:create type="Case" doc:name="Create Case" doc:id="b8063470-f910-46c5-810c-64e35ed4ffee" config-ref="Salesforce_Config">
+			<salesforce:records ><![CDATA[#[vars."case"]]]></salesforce:records>
+		</salesforce:create>
+		<choice doc:name="Choice" doc:id="eb57d52c-a778-48cf-a32a-7f627ecd50ed" >
+			<when expression="#[payload.successful == false]">
+				<raise-error doc:name="Case Not Created" doc:id="093bde26-4d8a-41de-9e42-18a19e499b59" type="CUSTOM:NOT_CREATED"/>
+			</when>
+			<otherwise >
+				<set-variable value="#[payload.items.id[0]]" doc:name="Set Case Id" doc:id="7a3556a6-8a64-449b-bd21-f6de91433196" variableName="CaseId"/>
+				<choice doc:name="Choice" doc:id="d5fdeb1a-7d35-46be-a2b1-d19dafed32e9" >
+					<when expression='#[vars.File.fileContent != null and vars.File.fileName != null]'>
+						<flow-ref doc:name="Flow Reference" doc:id="a8f5c575-28a8-40c1-9285-17275dc464c8" name="UploadFile"/>
+					</when>
+				</choice>
+				<ee:transform doc:name="Case Created" doc:id="7a3884a1-868b-4cb1-b5fc-d77f0f136b93">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Case Created.",
+	fileSuccess : vars.FileSuccess
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="b2b6ec33-70aa-4842-b3f9-dbcc4759efae" type="CUSTOM:NOT_CREATED">
+				<ee:transform doc:name="Transform Message" doc:id="15585f29-0bb2-47ca-a541-5e3d48fa56cd" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "The case could not be created. Please try again.",
+	details : payload.items.exception.message
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="400" doc:name="Set httpStatus" doc:id="c59c462a-a792-4045-a3eb-bcf9d7eced57" variableName="httpStatus"/>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="792e1405-2c62-4f35-b7c2-6e8cd2786b00" >
+				<ee:transform doc:name="Transform Message" doc:id="019bb4a4-c609-4cc6-be43-12590345368f" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Unknown error.",
+	details : error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
     </flow>
     <flow name="post:\import:application\csv:sf-system-api-config">
         <ee:transform doc:name="Transform Message">
@@ -565,4 +628,49 @@ output application/json
             </ee:message>
         </ee:transform>
     </flow>
+	<flow name="UploadFile" doc:id="b54cd6eb-4fed-467e-bc6f-905800f754dc" >
+		<ee:transform doc:name="Set File To Binary-Salesforce" doc:id="56255a61-c8bb-413f-8ab2-f080f38ca853" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+import * from dw::core::Binaries
+output application/java
+---
+[{
+  PathOnClient: vars.File.fileName,
+  VersionData: vars.File.fileContent as Binary {
+    class: "byte[]"
+  }
+}]]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<salesforce:upsert objectType="ContentVersion" externalIdFieldName="Id" doc:name="Post File Into ContentVersion" doc:id="04eef9e0-e94d-4529-8944-fab4143417ad" config-ref="Salesforce_Config"/>
+		<salesforce:query doc:name="Get Data From Inserted File" doc:id="5cb5bf54-7dd5-49eb-a3f9-d6cc722f4ab3" config-ref="Salesforce_Config">
+			<salesforce:salesforce-query ><![CDATA[SELECT ContentDocumentId FROM ContentVersion WHERE Id = ':cvId']]></salesforce:salesforce-query>
+			<salesforce:parameters ><![CDATA[#[output application/java
+---
+{
+	cvId : payload.items[0].id
+}]]]></salesforce:parameters>
+		</salesforce:query>
+		<ee:transform doc:name="Link FIle To Case" doc:id="ada71c9c-9c88-4063-ba7e-440019e4da8e" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+payload map ( payload01 , indexOfPayload01 ) -> {
+	LinkedEntityId: vars.CaseId as String,
+	ContentDocumentId: payload01.ContentDocumentId
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<salesforce:upsert doc:name="Link Into ContentDocumentLink" doc:id="0b0dbd68-49d4-4aa2-9047-027b2b297afa" config-ref="Salesforce_Config" objectType="ContentDocumentLink" externalIdFieldName="Id"/>
+		<choice doc:name="Choice" doc:id="ee76ea36-d948-4841-8ee2-64aaa241765d" >
+			<when expression="#[payload.successful == false]">
+				<set-variable value="#[payload]" doc:name="Set FileFailed" doc:id="545f538a-04f5-4ac9-95aa-8615715f53af" variableName="FileSuccess"/>
+			</when>
+			<otherwise>
+				<set-variable value="true" doc:name="Set FileSuccess" doc:id="a90e28a1-24e4-4e64-a1a7-cc149d95bec0" variableName="FileSuccess"/>
+			</otherwise>
+		</choice>
+	</flow>
 </mule>
