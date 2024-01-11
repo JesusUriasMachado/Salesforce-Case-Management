@@ -150,21 +150,93 @@ output application/json
         </error-handler>
     </flow>
     <flow name="delete:\case\(id):sf-system-api-config">
-        <ee:transform doc:name="Transform Message">
-            <ee:variables>
-                <ee:set-variable variableName="id">attributes.uriParams.'id'</ee:set-variable>
-            </ee:variables>
-        </ee:transform>
-        <ee:transform doc:name="Transform Message">
-            <ee:message>
-                <ee:set-payload><![CDATA[%dw 2.0
+		<try doc:name="Try" doc:id="97932123-1e22-46fc-8018-c9575451e554" >
+			<salesforce:query doc:name="Get Case" doc:id="d2e14c34-1db2-4f9e-8488-1803c55387c7" config-ref="Salesforce_Config">
+				<salesforce:salesforce-query ><![CDATA[SELECT
+	ID
+FROM Case
+WHERE ID = ':id']]></salesforce:salesforce-query>
+				<salesforce:parameters ><![CDATA[#[output application/java
+---
+{
+	id : attributes.uriParams.id
+}]]]></salesforce:parameters>
+			</salesforce:query>
+			<error-handler >
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="92b654fa-2188-42ee-8322-d3bdc1e1671e" >
+					<raise-error doc:name="Case Not Found" doc:id="02d5c2c3-bae8-4e39-96d7-3d4c38707262" type="CUSTOM:FIND"/>
+				</on-error-propagate>
+			</error-handler>
+		</try>
+		<ee:transform doc:name="Set Case To Delete" doc:id="88df117a-04ba-4202-b693-e93846020d70" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+[payload[0].Id]]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<salesforce:delete doc:name="Delete Case" doc:id="d9a02c95-e8e3-4c08-9a61-4db1a66aa312" config-ref="Salesforce_Config"/>
+		<choice doc:name="Choice" doc:id="727aa74c-2c1b-4c08-9731-e455abbad87d" >
+			<when expression="#[payload.successful == false]">
+				<raise-error doc:name="Case Not Deleted" doc:id="447ed40b-c8b1-4a88-b34b-e82554456803" type="CUSTOM:DELETE"/>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Case Deleted" doc:id="09a055dc-05ef-4847-9e5e-4c02b1b91a12" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
 output application/json
 ---
 {
-  message: "Case Deleted"
-} as Object {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
-            </ee:message>
-        </ee:transform>
+	message : "Case deleted successfully."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="afa14a8d-da02-40e7-9441-04abefc3067e" type="CUSTOM:FIND">
+				<ee:transform doc:name="Case Not Found" doc:id="97071094-91ec-4a0a-9a7f-da2e570ea7b3" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Couldn't get case.",
+	details : error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="404" doc:name="Set httpStatus" doc:id="13128755-7c3c-4e75-8e76-fca87826630e" variableName="httpStatus"/>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="b600ec38-f6d5-4136-bb0b-31eabd41c1f6" type="CUSTOM:DELETE">
+				<ee:transform doc:name="Case Not Deleted" doc:id="b732261e-1e0f-4797-aff8-fe8288635e0c">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Couldn't delete case.",
+	details : payload.items.exception.message
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="400" doc:name="Set httpStatus" doc:id="667b68ee-5c8d-4ef6-979b-a35b01f0297f" variableName="httpStatus" />
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="2704cb60-1c3a-48df-a9d8-f61a6dc55697" >
+				<ee:transform doc:name="Unknown Error" doc:id="0f4b9dcd-f686-4ca7-89a0-211c31fdd39a">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Unkonwn error.",
+	details : error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
     </flow>
     <flow name="patch:\case\(id)\attatchments:multipart\form-data:sf-system-api-config">
         <ee:transform doc:name="Transform Message">
@@ -201,12 +273,12 @@ output application/json
         </ee:transform>
     </flow>
     <flow name="get:\case:sf-system-api-config">
-        <salesforce:query doc:name="Query" doc:id="862b1463-a6e3-4cf8-9569-65877c92df30" config-ref="Salesforce_Config">
+        <salesforce:query doc:name="Get Cases" doc:id="862b1463-a6e3-4cf8-9569-65877c92df30" config-ref="Salesforce_Config">
 			<salesforce:salesforce-query ><![CDATA[SELECT
-	ID
+	ID, AccountId, Subject, Description, Status, Priority, ContactId, Origin, CreatedDate, ClosedDate
 FROM Case]]></salesforce:salesforce-query>
 		</salesforce:query>
-		<ee:transform doc:name="Transform Message">
+		<ee:transform doc:name="Cases">
             <ee:message>
                 <ee:set-payload><![CDATA[%dw 2.0
 output application/json
@@ -219,7 +291,7 @@ output application/json
         </ee:transform>
 		<error-handler >
 			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="f5b271aa-40ce-4c0b-b8b0-a0758e93c787" >
-				<ee:transform doc:name="Transform Message" doc:id="7493c905-f86c-4d43-9e85-cc64a7029be8" >
+				<ee:transform doc:name="Unkonwn Error" doc:id="7493c905-f86c-4d43-9e85-cc64a7029be8" >
 					<ee:message >
 						<ee:set-payload ><![CDATA[%dw 2.0
 output application/json
@@ -234,313 +306,188 @@ output application/json
 		</error-handler>
     </flow>
     <flow name="get:\accounts:sf-system-api-config">
-        <ee:transform doc:name="Transform Message">
-            <ee:message>
-                <ee:set-payload><![CDATA[%dw 2.0
-output application/json
+		<salesforce:query doc:name="Get Data" doc:id="edf92e50-9204-4b8a-957a-641a7a23b918" config-ref="Salesforce_Config">
+			<salesforce:salesforce-query ><![CDATA[SELECT
+	ID, AccountId, Subject, Description, Status, Priority, ContactId, Origin, CreatedDate, ClosedDate
+FROM Case
+WHERE Account.Name LIKE ':accounts']]></salesforce:salesforce-query>
+			<salesforce:parameters ><![CDATA[#[output application/java
 ---
-[
-  {
-    ID: 1,
-    CaseNumber: 1,
-    AccountId: "977036673-0",
-    Subject: "turpis eget elit sodales scelerisque mauris sit amet eros suspendisse accumsan tortor quis turpis",
-    Description: "vehicula consequat morbi a ipsum integer a nibh in quis justo maecenas rhoncus aliquam lacus morbi quis tortor id",
-    Status: "Pink",
-    Priority: "Violet",
-    ContactId: "955490485-1",
-    Origin: "Puce",
-    CreatedDate: "12/27/2022",
-    ClosedDate: "5/31/2023"
-  }, 
-  {
-    ID: 2,
-    CaseNumber: 2,
-    AccountId: "184964135-8",
-    Subject: "aliquam quis turpis eget elit sodales scelerisque mauris sit amet eros suspendisse accumsan tortor quis turpis",
-    Description: "viverra dapibus nulla suscipit ligula in lacus curabitur at ipsum ac tellus semper",
-    Status: "Teal",
-    Priority: "Purple",
-    ContactId: "105936429-8",
-    Origin: "Blue",
-    CreatedDate: "2/17/2023",
-    ClosedDate: "1/21/2023"
-  }, 
-  {
-    ID: 3,
-    CaseNumber: 3,
-    AccountId: "631017079-1",
-    Subject: "nulla justo aliquam quis turpis eget elit sodales scelerisque mauris sit amet eros suspendisse accumsan tortor quis turpis",
-    Description: "neque duis bibendum morbi non quam nec dui luctus rutrum nulla tellus in sagittis dui vel nisl duis",
-    Status: "Blue",
-    Priority: "Orange",
-    ContactId: "538338006-X",
-    Origin: "Fuscia",
-    CreatedDate: "7/8/2023",
-    ClosedDate: "12/28/2022"
-  }, 
-  {
-    ID: 4,
-    CaseNumber: 4,
-    AccountId: "493989633-1",
-    Subject: "consequat morbi a ipsum integer a nibh in quis justo maecenas rhoncus aliquam lacus",
-    Description: "neque libero convallis eget eleifend luctus ultricies eu nibh quisque id justo sit amet",
-    Status: "Aquamarine",
-    Priority: "Purple",
-    ContactId: "521813450-3",
-    Origin: "Indigo",
-    CreatedDate: "4/30/2023",
-    ClosedDate: "5/19/2023"
-  }, 
-  {
-    ID: 5,
-    CaseNumber: 5,
-    AccountId: "797429870-7",
-    Subject: "orci vehicula condimentum curabitur in libero ut massa volutpat convallis morbi odio odio",
-    Description: "est risus auctor sed tristique in tempus sit amet sem fusce consequat nulla",
-    Status: "Teal",
-    Priority: "Orange",
-    ContactId: "788554681-0",
-    Origin: "Fuscia",
-    CreatedDate: "11/10/2022",
-    ClosedDate: "8/3/2022"
-  }, 
-  {
-    ID: 6,
-    CaseNumber: 6,
-    AccountId: "412139559-X",
-    Subject: "pede justo lacinia eget tincidunt eget tempus vel pede morbi porttitor lorem id ligula suspendisse ornare consequat",
-    Description: "at nulla suspendisse potenti cras in purus eu magna vulputate luctus cum sociis natoque",
-    Status: "Fuscia",
-    Priority: "Red",
-    ContactId: "350890357-5",
-    Origin: "Maroon",
-    CreatedDate: "6/2/2023",
-    ClosedDate: "11/13/2022"
-  }, 
-  {
-    ID: 7,
-    CaseNumber: 7,
-    AccountId: "486075521-9",
-    Subject: "ut mauris eget massa tempor convallis nulla neque libero convallis eget eleifend luctus ultricies eu nibh quisque id justo",
-    Description: "ridiculus mus etiam vel augue vestibulum rutrum rutrum neque aenean auctor gravida sem praesent id massa id nisl venenatis lacinia",
-    Status: "Blue",
-    Priority: "Khaki",
-    ContactId: "162316785-X",
-    Origin: "Mauv",
-    CreatedDate: "9/20/2022",
-    ClosedDate: "4/9/2023"
-  }, 
-  {
-    ID: 8,
-    CaseNumber: 8,
-    AccountId: "338612325-2",
-    Subject: "lobortis est phasellus sit amet erat nulla tempus vivamus in felis eu sapien cursus vestibulum proin",
-    Description: "nunc rhoncus dui vel sem sed sagittis nam congue risus semper",
-    Status: "Pink",
-    Priority: "Red",
-    ContactId: "561377246-0",
-    Origin: "Turquoise",
-    CreatedDate: "10/11/2022",
-    ClosedDate: "8/1/2022"
-  }, 
-  {
-    ID: 9,
-    CaseNumber: 9,
-    AccountId: "901658528-1",
-    Subject: "at nulla suspendisse potenti cras in purus eu magna vulputate luctus cum sociis natoque",
-    Description: "facilisi cras non velit nec nisi vulputate nonummy maecenas tincidunt lacus at velit vivamus vel nulla",
-    Status: "Yellow",
-    Priority: "Crimson",
-    ContactId: "525220402-0",
-    Origin: "Red",
-    CreatedDate: "3/17/2023",
-    ClosedDate: "3/17/2023"
-  }, 
-  {
-    ID: 10,
-    CaseNumber: 10,
-    AccountId: "722263531-9",
-    Subject: "vivamus vel nulla eget eros elementum pellentesque quisque porta volutpat erat quisque erat eros viverra eget congue eget semper rutrum",
-    Description: "fermentum justo nec condimentum neque sapien placerat ante nulla justo aliquam quis turpis eget elit sodales scelerisque mauris sit",
-    Status: "Puce",
-    Priority: "Crimson",
-    ContactId: "113243906-X",
-    Origin: "Khaki",
-    CreatedDate: "10/16/2022",
-    ClosedDate: "2/23/2023"
-  }
-] as Array {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
-            </ee:message>
-        </ee:transform>
-    </flow>
-    <flow name="get:\contacts:sf-system-api-config">
-        <ee:transform doc:name="Transform Message">
-            <ee:message>
-                <ee:set-payload><![CDATA[%dw 2.0
-output application/json
----
-[
-  {
-    ID: 1,
-    CaseNumber: 1,
-    AccountId: "977036673-0",
-    Subject: "turpis eget elit sodales scelerisque mauris sit amet eros suspendisse accumsan tortor quis turpis",
-    Description: "vehicula consequat morbi a ipsum integer a nibh in quis justo maecenas rhoncus aliquam lacus morbi quis tortor id",
-    Status: "Pink",
-    Priority: "Violet",
-    ContactId: "955490485-1",
-    Origin: "Puce",
-    CreatedDate: "12/27/2022",
-    ClosedDate: "5/31/2023"
-  }, 
-  {
-    ID: 2,
-    CaseNumber: 2,
-    AccountId: "184964135-8",
-    Subject: "aliquam quis turpis eget elit sodales scelerisque mauris sit amet eros suspendisse accumsan tortor quis turpis",
-    Description: "viverra dapibus nulla suscipit ligula in lacus curabitur at ipsum ac tellus semper",
-    Status: "Teal",
-    Priority: "Purple",
-    ContactId: "105936429-8",
-    Origin: "Blue",
-    CreatedDate: "2/17/2023",
-    ClosedDate: "1/21/2023"
-  }, 
-  {
-    ID: 3,
-    CaseNumber: 3,
-    AccountId: "631017079-1",
-    Subject: "nulla justo aliquam quis turpis eget elit sodales scelerisque mauris sit amet eros suspendisse accumsan tortor quis turpis",
-    Description: "neque duis bibendum morbi non quam nec dui luctus rutrum nulla tellus in sagittis dui vel nisl duis",
-    Status: "Blue",
-    Priority: "Orange",
-    ContactId: "538338006-X",
-    Origin: "Fuscia",
-    CreatedDate: "7/8/2023",
-    ClosedDate: "12/28/2022"
-  }, 
-  {
-    ID: 4,
-    CaseNumber: 4,
-    AccountId: "493989633-1",
-    Subject: "consequat morbi a ipsum integer a nibh in quis justo maecenas rhoncus aliquam lacus",
-    Description: "neque libero convallis eget eleifend luctus ultricies eu nibh quisque id justo sit amet",
-    Status: "Aquamarine",
-    Priority: "Purple",
-    ContactId: "521813450-3",
-    Origin: "Indigo",
-    CreatedDate: "4/30/2023",
-    ClosedDate: "5/19/2023"
-  }, 
-  {
-    ID: 5,
-    CaseNumber: 5,
-    AccountId: "797429870-7",
-    Subject: "orci vehicula condimentum curabitur in libero ut massa volutpat convallis morbi odio odio",
-    Description: "est risus auctor sed tristique in tempus sit amet sem fusce consequat nulla",
-    Status: "Teal",
-    Priority: "Orange",
-    ContactId: "788554681-0",
-    Origin: "Fuscia",
-    CreatedDate: "11/10/2022",
-    ClosedDate: "8/3/2022"
-  }, 
-  {
-    ID: 6,
-    CaseNumber: 6,
-    AccountId: "412139559-X",
-    Subject: "pede justo lacinia eget tincidunt eget tempus vel pede morbi porttitor lorem id ligula suspendisse ornare consequat",
-    Description: "at nulla suspendisse potenti cras in purus eu magna vulputate luctus cum sociis natoque",
-    Status: "Fuscia",
-    Priority: "Red",
-    ContactId: "350890357-5",
-    Origin: "Maroon",
-    CreatedDate: "6/2/2023",
-    ClosedDate: "11/13/2022"
-  }, 
-  {
-    ID: 7,
-    CaseNumber: 7,
-    AccountId: "486075521-9",
-    Subject: "ut mauris eget massa tempor convallis nulla neque libero convallis eget eleifend luctus ultricies eu nibh quisque id justo",
-    Description: "ridiculus mus etiam vel augue vestibulum rutrum rutrum neque aenean auctor gravida sem praesent id massa id nisl venenatis lacinia",
-    Status: "Blue",
-    Priority: "Khaki",
-    ContactId: "162316785-X",
-    Origin: "Mauv",
-    CreatedDate: "9/20/2022",
-    ClosedDate: "4/9/2023"
-  }, 
-  {
-    ID: 8,
-    CaseNumber: 8,
-    AccountId: "338612325-2",
-    Subject: "lobortis est phasellus sit amet erat nulla tempus vivamus in felis eu sapien cursus vestibulum proin",
-    Description: "nunc rhoncus dui vel sem sed sagittis nam congue risus semper",
-    Status: "Pink",
-    Priority: "Red",
-    ContactId: "561377246-0",
-    Origin: "Turquoise",
-    CreatedDate: "10/11/2022",
-    ClosedDate: "8/1/2022"
-  }, 
-  {
-    ID: 9,
-    CaseNumber: 9,
-    AccountId: "901658528-1",
-    Subject: "at nulla suspendisse potenti cras in purus eu magna vulputate luctus cum sociis natoque",
-    Description: "facilisi cras non velit nec nisi vulputate nonummy maecenas tincidunt lacus at velit vivamus vel nulla",
-    Status: "Yellow",
-    Priority: "Crimson",
-    ContactId: "525220402-0",
-    Origin: "Red",
-    CreatedDate: "3/17/2023",
-    ClosedDate: "3/17/2023"
-  }, 
-  {
-    ID: 10,
-    CaseNumber: 10,
-    AccountId: "722263531-9",
-    Subject: "vivamus vel nulla eget eros elementum pellentesque quisque porta volutpat erat quisque erat eros viverra eget congue eget semper rutrum",
-    Description: "fermentum justo nec condimentum neque sapien placerat ante nulla justo aliquam quis turpis eget elit sodales scelerisque mauris sit",
-    Status: "Puce",
-    Priority: "Crimson",
-    ContactId: "113243906-X",
-    Origin: "Khaki",
-    CreatedDate: "10/16/2022",
-    ClosedDate: "2/23/2023"
-  }
-] as Array {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
-            </ee:message>
-        </ee:transform>
-    </flow>
-    <flow name="get:\case\(id):sf-system-api-config">
-        <ee:transform doc:name="Transform Message">
-            <ee:variables>
-                <ee:set-variable variableName="id">attributes.uriParams.'id'</ee:set-variable>
-            </ee:variables>
-        </ee:transform>
-        <ee:transform doc:name="Transform Message">
-            <ee:message>
-                <ee:set-payload><![CDATA[%dw 2.0
+{
+	accounts : '%' ++ attributes.queryParams.accounts ++ '%'
+}]]]></salesforce:parameters>
+		</salesforce:query>
+		<choice doc:name="Choice" doc:id="64250525-9f61-488a-a3e3-17aabef8f3ee" >
+			<when expression="#[sizeOf(payload) &lt; 1]">
+				<ee:transform doc:name="Cases Not Found" doc:id="19af18e8-960b-485a-8d9f-a71e012095c8" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
 output application/json
 ---
 {
-  ID: 1,
-  CaseNumber: 1,
-  AccountId: "9770366730",
-  Subject: "turpis eget elit sodales scelerisque mauris sit amet eros suspendisse accumsan tortor quis turpis",
-  Description: "vehicula consequat morbi a ipsum integer a nibh in quis justo maecenas rhoncus aliquam lacus morbi quis tortor id",
-  Status: "Pink",
-  Priority: "Violet",
-  ContactId: "9554904851",
-  Origin: "Puce",
-  CreatedDate: "12/27/2022",
-  ClosedDate: "5/31/2023"
-} as Object {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
-            </ee:message>
-        </ee:transform>
+	message: "Cases not found."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="404" doc:name="Set httpStatus" doc:id="aff8816f-4d04-4cc8-accd-412162658b9b" variableName="httpStatus"/>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Cases Found" doc:id="b51ab0a1-ec5c-4894-9a7b-43f4e292df0d" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	size: sizeOf(payload),
+	data: payload
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="de1176f1-847a-4249-b19f-32752137f689" >
+				<ee:transform doc:name="Unknown Error" doc:id="fa6d27e4-96dc-470b-bd0d-98c74f65c170" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Unknown error.",
+	details : error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+    </flow>
+    <flow name="get:\contacts:sf-system-api-config">
+		<salesforce:query doc:name="Get Cases" doc:id="f0ad1cb9-a521-4b76-84b8-657f9a911f15" config-ref="Salesforce_Config">
+			<salesforce:salesforce-query ><![CDATA[SELECT
+	ID, AccountId, Subject, Description, Status, Priority, ContactId, Origin, CreatedDate, ClosedDate
+FROM Case
+WHERE Contact.Name LIKE ':contacts']]></salesforce:salesforce-query>
+			<salesforce:parameters ><![CDATA[#[output application/java
+---
+{
+	contacts : '%' ++ attributes.queryParams.contacts ++ '%'
+}]]]></salesforce:parameters>
+		</salesforce:query>
+		<choice doc:name="Choice" doc:id="929f04c1-414c-4d7f-86f7-4f9a54fbc577" >
+			<when expression="#[sizeOf(payload) &lt; 1]">
+				<ee:transform doc:name="Cases Not Found" doc:id="d2e884cb-7eff-4526-b1d9-bf657356d58e" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Cases not found."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="404" doc:name="Set httpStatus" doc:id="ddf3516e-42be-42d5-b97c-99c9b3c50125" variableName="httpStatus"/>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Cases Found" doc:id="ad5deb96-5f3b-48c7-830c-d519ab509bd1" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	size: sizeOf(payload),
+	data: payload
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="7bf1aa23-0cbb-47ca-885f-e10b5431cbd6" >
+				<ee:transform doc:name="Transform Message" doc:id="db884865-9dcc-4f34-80ed-e4840c441ad1" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+    </flow>
+    <flow name="get:\case\(id):sf-system-api-config">
+		<try doc:name="Try" doc:id="1e414ffe-243f-4153-90a9-66169fc4fe1d" >
+			<salesforce:query doc:name="Get Case" doc:id="20173911-5410-41f6-9fc9-57270deaff8a" config-ref="Salesforce_Config" >
+				<salesforce:salesforce-query ><![CDATA[SELECT
+	ID, AccountId, Subject, Description, Status, Priority, ContactId, Origin, CreatedDate, ClosedDate
+FROM Case
+WHERE ID = ':id']]></salesforce:salesforce-query>
+				<salesforce:parameters ><![CDATA[#[output application/java
+---
+{
+	id : attributes.uriParams.id
+}]]]></salesforce:parameters>
+			</salesforce:query>
+			<error-handler >
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="14b39f62-40e7-4596-b9e5-39f2000a3951" >
+					<raise-error doc:name="Raise error" doc:id="cec0294b-fa7a-48dc-bc85-532cc2ce9733" type="CUSTOM:GET"/>
+				</on-error-propagate>
+			</error-handler>
+		</try>
+		<choice doc:name="Choice" doc:id="edd4b803-7592-4e3e-b572-973566729f6a" >
+			<when expression="#[sizeOf(payload) == 0]">
+				<ee:transform doc:name="Case Not Found" doc:id="06bcfd22-6c0b-46b9-84af-ae2f94147dcb" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Case not found."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="404" doc:name="Set httpStatus" doc:id="152d3452-0e4c-4cb0-a09c-d6c4b971871a" variableName="httpStatus"/>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Cases Found" doc:id="f6104602-48e4-4c9d-b742-f9a2702bec5c" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="44b39ed4-56a7-4a02-ab60-7d0794892dfb" type="CUSTOM:GET">
+				<ee:transform doc:name="Not Found Error" doc:id="7514003c-0c67-4edb-a3ad-78a879faf542" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Unable to retrieve.",
+	details: error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="400" doc:name="Set httpStatus" doc:id="2cfb1c66-da16-4e39-a987-d54fc825c616" variableName="httpStatus"/>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="206f33c1-3b74-4722-9658-1c865e1fb55e" >
+				<ee:transform doc:name="Unknown Error" doc:id="54bc36aa-8883-43a9-8479-1712db554957" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Unknown error.",
+	details : error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
     </flow>
     <flow name="post:\case:multipart\form-data:sf-system-api-config">
 		<ee:transform doc:name="Read Payload Parts">
