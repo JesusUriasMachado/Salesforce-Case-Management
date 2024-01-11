@@ -416,68 +416,14 @@ output application/java
 		</error-handler>
     </flow>
     <flow name="get:\case\(id):sf-system-api-config">
-		<try doc:name="Try" doc:id="1e414ffe-243f-4153-90a9-66169fc4fe1d" >
-			<salesforce:query doc:name="Get Case" doc:id="20173911-5410-41f6-9fc9-57270deaff8a" config-ref="Salesforce_Config" >
-				<salesforce:salesforce-query ><![CDATA[SELECT
-	ID, AccountId, Subject, Description, Status, Priority, ContactId, Origin, CreatedDate, ClosedDate
-FROM Case
-WHERE ID = ':id']]></salesforce:salesforce-query>
-				<salesforce:parameters ><![CDATA[#[output application/java
----
-{
-	id : attributes.uriParams.id
-}]]]></salesforce:parameters>
-			</salesforce:query>
-			<error-handler >
-				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="14b39f62-40e7-4596-b9e5-39f2000a3951" >
-					<raise-error doc:name="Raise error" doc:id="cec0294b-fa7a-48dc-bc85-532cc2ce9733" type="CUSTOM:GET"/>
-				</on-error-propagate>
-			</error-handler>
-		</try>
-		<choice doc:name="Choice" doc:id="edd4b803-7592-4e3e-b572-973566729f6a" >
-			<when expression="#[sizeOf(payload) == 0]">
-				<ee:transform doc:name="Case Not Found" doc:id="06bcfd22-6c0b-46b9-84af-ae2f94147dcb" >
-					<ee:message >
-						<ee:set-payload ><![CDATA[%dw 2.0
-output application/json
----
-{
-	message : "Case not found."
-}]]></ee:set-payload>
-					</ee:message>
-				</ee:transform>
-				<set-variable value="404" doc:name="Set httpStatus" doc:id="152d3452-0e4c-4cb0-a09c-d6c4b971871a" variableName="httpStatus"/>
-			</when>
-			<otherwise >
-				<ee:transform doc:name="Cases Found" doc:id="f6104602-48e4-4c9d-b742-f9a2702bec5c" >
-					<ee:message >
-						<ee:set-payload ><![CDATA[%dw 2.0
-output application/json
----
-payload]]></ee:set-payload>
-					</ee:message>
-				</ee:transform>
-			</otherwise>
-		</choice>
-		<error-handler >
-			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="44b39ed4-56a7-4a02-ab60-7d0794892dfb" type="CUSTOM:GET">
-				<ee:transform doc:name="Not Found Error" doc:id="7514003c-0c67-4edb-a3ad-78a879faf542" >
-					<ee:message >
-						<ee:set-payload ><![CDATA[%dw 2.0
-output application/json
----
-{
-	message : "Unable to retrieve.",
-	details: error.description
-}]]></ee:set-payload>
-					</ee:message>
-				</ee:transform>
-				<set-variable value="400" doc:name="Set httpStatus" doc:id="2cfb1c66-da16-4e39-a987-d54fc825c616" variableName="httpStatus"/>
-			</on-error-propagate>
-			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="206f33c1-3b74-4722-9658-1c865e1fb55e" >
-				<ee:transform doc:name="Unknown Error" doc:id="54bc36aa-8883-43a9-8479-1712db554957" >
-					<ee:message >
-						<ee:set-payload ><![CDATA[%dw 2.0
+        <ee:transform doc:name="Transform Message">
+            <ee:variables>
+                <ee:set-variable variableName="id">attributes.uriParams.'id'</ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
 output application/json
 ---
 {
