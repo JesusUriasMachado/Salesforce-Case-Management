@@ -256,21 +256,64 @@ output application/json
         </ee:transform>
     </flow>
     <flow name="patch:\case\(id):multipart\form-data:sf-system-api-config">
-        <ee:transform doc:name="Transform Message">
-            <ee:variables>
-                <ee:set-variable variableName="id">attributes.uriParams.'id'</ee:set-variable>
-            </ee:variables>
-        </ee:transform>
-        <ee:transform doc:name="Transform Message">
+        <ee:transform doc:name="Read Parts">
             <ee:message>
                 <ee:set-payload><![CDATA[%dw 2.0
 output application/json
 ---
-{
-  message: "Case Updated"
-} as Object {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
+payload.parts]]></ee:set-payload>
             </ee:message>
         </ee:transform>
+		<set-variable value="#[%dw 2.0&#10;output application/json&#10;---&#10;[{&#10;  ID: attributes.uriParams.id,&#10;  AccountId : payload.AccountId.content,&#10;  Subject : payload.Subject.content,&#10;  Description : payload.Description.content,&#10;  Status : payload.Status.content,&#10;  Priority : payload.Priority.content,&#10;  ContactId : payload.ContactId.content,&#10;  Origin : payload.Origin.content,&#10;  CreatedDate : payload.CreatedDate.content,&#10;  ClosedDate : payload.ClosedDate.content&#10;}]]" doc:name="Set Case" doc:id="5951ff32-807c-4a94-9a59-2089648b3387" variableName="case"/>
+		<salesforce:update type="Case" doc:name="Patch Case" doc:id="17fb0858-541d-411a-a651-bb199f7de227" config-ref="Salesforce_Config">
+			<salesforce:records ><![CDATA[#[vars."case"]]]></salesforce:records>
+		</salesforce:update>
+		<choice doc:name="Choice" doc:id="7312a511-0d1f-4cf1-8b8a-ca711a906872" >
+			<when expression="#[payload.successful == false]">
+				<raise-error doc:name="Not Updated" doc:id="b8bf589b-a1f7-476d-926b-dda8a9d8f788" type="CUSTOM:PATCH"/>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Case Patched" doc:id="049d8c11-c193-4549-93f5-76ef6bb3fe03" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Case updated."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="f5440f7a-ae2c-4ad2-8e29-66fc4baaf564" type="CUSTOM:PATCH">
+				<ee:transform doc:name="Not Updated" doc:id="afd9a176-05cb-479f-b481-8b0ccea4607c" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Couldn't update case.",
+	details: payload.items.exception.message
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="400" doc:name="Set httpStatus" doc:id="c115bcfa-3ce5-4bcd-90e5-a6c14c8ca6bc" variableName="httpStatus"/>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="0de470c5-eea9-41d9-a6ed-fe4375b70134" >
+				<ee:transform doc:name="Unknown Error" doc:id="007f0997-c9e8-4ed3-a3af-5ddaa9b11c54" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Unknown error.",
+	details: error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
     </flow>
     <flow name="get:\case:sf-system-api-config">
         <salesforce:query doc:name="Get Cases" doc:id="862b1463-a6e3-4cf8-9569-65877c92df30" config-ref="Salesforce_Config">
@@ -416,14 +459,68 @@ output application/java
 		</error-handler>
     </flow>
     <flow name="get:\case\(id):sf-system-api-config">
-        <ee:transform doc:name="Transform Message">
-            <ee:variables>
-                <ee:set-variable variableName="id">attributes.uriParams.'id'</ee:set-variable>
-            </ee:variables>
-        </ee:transform>
-        <ee:transform doc:name="Transform Message">
-            <ee:message>
-                <ee:set-payload><![CDATA[%dw 2.0
+		<try doc:name="Try" doc:id="1e414ffe-243f-4153-90a9-66169fc4fe1d" >
+			<salesforce:query doc:name="Get Case" doc:id="20173911-5410-41f6-9fc9-57270deaff8a" config-ref="Salesforce_Config" >
+				<salesforce:salesforce-query ><![CDATA[SELECT
+	ID, AccountId, Subject, Description, Status, Priority, ContactId, Origin, CreatedDate, ClosedDate
+FROM Case
+WHERE ID = ':id']]></salesforce:salesforce-query>
+				<salesforce:parameters ><![CDATA[#[output application/java
+---
+{
+	id : attributes.uriParams.id
+}]]]></salesforce:parameters>
+			</salesforce:query>
+			<error-handler >
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="14b39f62-40e7-4596-b9e5-39f2000a3951" >
+					<raise-error doc:name="Raise error" doc:id="cec0294b-fa7a-48dc-bc85-532cc2ce9733" type="CUSTOM:GET"/>
+				</on-error-propagate>
+			</error-handler>
+		</try>
+		<choice doc:name="Choice" doc:id="edd4b803-7592-4e3e-b572-973566729f6a" >
+			<when expression="#[sizeOf(payload) == 0]">
+				<ee:transform doc:name="Case Not Found" doc:id="06bcfd22-6c0b-46b9-84af-ae2f94147dcb" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Case not found."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="404" doc:name="Set httpStatus" doc:id="152d3452-0e4c-4cb0-a09c-d6c4b971871a" variableName="httpStatus"/>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Cases Found" doc:id="f6104602-48e4-4c9d-b742-f9a2702bec5c" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="44b39ed4-56a7-4a02-ab60-7d0794892dfb" type="CUSTOM:GET">
+				<ee:transform doc:name="Not Found Error" doc:id="7514003c-0c67-4edb-a3ad-78a879faf542" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Unable to retrieve.",
+	details: error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="400" doc:name="Set httpStatus" doc:id="2cfb1c66-da16-4e39-a987-d54fc825c616" variableName="httpStatus"/>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="206f33c1-3b74-4722-9658-1c865e1fb55e" >
+				<ee:transform doc:name="Unknown Error" doc:id="54bc36aa-8883-43a9-8479-1712db554957" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
 output application/json
 ---
 {
