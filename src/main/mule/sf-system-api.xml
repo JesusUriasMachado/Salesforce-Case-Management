@@ -239,21 +239,59 @@ output application/json
 		</error-handler>
     </flow>
     <flow name="patch:\case\(id)\attatchments:multipart\form-data:sf-system-api-config">
-        <ee:transform doc:name="Transform Message">
+		<ee:transform doc:name="Read Parts">
             <ee:variables>
-                <ee:set-variable variableName="id">attributes.uriParams.'id'</ee:set-variable>
+                <ee:set-variable variableName="id"><![CDATA[%dw 2.0
+output application/json
+---
+payload.parts]]></ee:set-variable>
             </ee:variables>
         </ee:transform>
-        <ee:transform doc:name="Transform Message">
-            <ee:message>
-                <ee:set-payload><![CDATA[%dw 2.0
+		<set-variable value='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;  	fileContent : payload.File.content,&#10;  	fileName : payload.File.headers."Content-Disposition".filename&#10;  }]' doc:name="Set File" doc:id="89ce5d47-72c4-47a7-a4ef-9003b33e5481" variableName="File" />
+		<set-variable value="#[attributes.uriParams.id]" doc:name="Set Case Id" doc:id="a31fc1ab-3a6a-4cb8-82ee-84f4e76c6c9a" variableName="CaseId" />
+		<flow-ref doc:name="Flow UploadFile" doc:id="d768f63f-ac2d-411f-becf-0fe4910039fe" name="UploadFile"/>
+		<choice doc:name="Choice" doc:id="9af25a5a-ea01-4ddd-b71a-d80505f0760a" >
+			<when expression="#[vars.FileSuccess ~= false]">
+				<ee:transform doc:name="Image Not Attatchet" doc:id="6f834769-ef1a-4df7-86cd-2b7646229f90" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
 output application/json
 ---
 {
-  message: "Case Updated"
+	message : "Image could not be uploaded.",
 }]]></ee:set-payload>
-            </ee:message>
-        </ee:transform>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="400" doc:name="Set httpStatus" doc:id="fcd5be9c-a6ca-4fc7-8b04-666c68ce8da1" variableName="httpStatus"/>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Image Attatchet" doc:id="7cca80bd-eabd-4457-902e-0badaa1b5287" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Image attatched."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="eb3652ed-3dfd-4e60-9497-13b6a591d6c6" >
+				<ee:transform doc:name="Unknown Error" doc:id="7dca2640-06a7-4545-930b-286a43a26123" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Unknown error.",
+	details: error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
     </flow>
     <flow name="patch:\case\(id):multipart\form-data:sf-system-api-config">
         <ee:transform doc:name="Read Parts">
@@ -541,7 +579,7 @@ output application/json
 payload.parts]]></ee:set-payload>
             </ee:message>
         </ee:transform>
-		<scatter-gather doc:name="Scatter-Gather" doc:id="2778d53f-3042-4efa-9a68-47cfc9916d61" >
+		<scatter-gather doc:name="Scatter-Gather" doc:id="a34d3892-3209-49ce-ab86-2b225747b901" >
 			<route >
 				<set-variable value='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;  	fileContent : payload.File.content,&#10;  	fileName : payload.File.headers."Content-Disposition".filename&#10;  }]' doc:name="Set File" doc:id="90a00383-1960-4440-8e4e-474d3d62c07a" variableName="File" />
 			</route>
@@ -560,7 +598,7 @@ payload.parts]]></ee:set-payload>
 				<set-variable value="#[payload.items.id[0]]" doc:name="Set Case Id" doc:id="7a3556a6-8a64-449b-bd21-f6de91433196" variableName="CaseId"/>
 				<choice doc:name="Choice" doc:id="d5fdeb1a-7d35-46be-a2b1-d19dafed32e9" >
 					<when expression='#[vars.File.fileContent != null and vars.File.fileName != null]'>
-						<flow-ref doc:name="Flow Reference" doc:id="a8f5c575-28a8-40c1-9285-17275dc464c8" name="UploadFile"/>
+						<flow-ref doc:name="Flow UploadFile" doc:id="a8f5c575-28a8-40c1-9285-17275dc464c8" name="UploadFile"/>
 					</when>
 				</choice>
 				<ee:transform doc:name="Case Created" doc:id="7a3884a1-868b-4cb1-b5fc-d77f0f136b93">
@@ -592,7 +630,7 @@ output application/json
 				<set-variable value="400" doc:name="Set httpStatus" doc:id="c59c462a-a792-4045-a3eb-bcf9d7eced57" variableName="httpStatus"/>
 			</on-error-propagate>
 			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="792e1405-2c62-4f35-b7c2-6e8cd2786b00" >
-				<ee:transform doc:name="Transform Message" doc:id="019bb4a4-c609-4cc6-be43-12590345368f" >
+				<ee:transform doc:name="Unknown Error" doc:id="019bb4a4-c609-4cc6-be43-12590345368f" >
 					<ee:message >
 						<ee:set-payload ><![CDATA[%dw 2.0
 output application/json
@@ -618,10 +656,10 @@ output application/json
             </ee:message>
         </ee:transform>
     </flow>
-	<flow name="UploadFile" doc:id="b54cd6eb-4fed-467e-bc6f-905800f754dc" >
-		<ee:transform doc:name="Set File To Binary-Salesforce" doc:id="56255a61-c8bb-413f-8ab2-f080f38ca853" >
-			<ee:message >
-				<ee:set-payload ><![CDATA[%dw 2.0
+	<flow name="UploadFile" doc:id="b54cd6eb-4fed-467e-bc6f-905800f754dc">
+		<ee:transform doc:name="Set File To Binary-Salesforce" doc:id="56255a61-c8bb-413f-8ab2-f080f38ca853">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
 import * from dw::core::Binaries
 output application/java
 ---
@@ -633,18 +671,18 @@ output application/java
 }]]]></ee:set-payload>
 			</ee:message>
 		</ee:transform>
-		<salesforce:upsert objectType="ContentVersion" externalIdFieldName="Id" doc:name="Post File Into ContentVersion" doc:id="04eef9e0-e94d-4529-8944-fab4143417ad" config-ref="Salesforce_Config"/>
+		<salesforce:upsert objectType="ContentVersion" externalIdFieldName="Id" doc:name="Post File Into ContentVersion" doc:id="04eef9e0-e94d-4529-8944-fab4143417ad" config-ref="Salesforce_Config" />
 		<salesforce:query doc:name="Get Data From Inserted File" doc:id="5cb5bf54-7dd5-49eb-a3f9-d6cc722f4ab3" config-ref="Salesforce_Config">
-			<salesforce:salesforce-query ><![CDATA[SELECT ContentDocumentId FROM ContentVersion WHERE Id = ':cvId']]></salesforce:salesforce-query>
-			<salesforce:parameters ><![CDATA[#[output application/java
+			<salesforce:salesforce-query><![CDATA[SELECT ContentDocumentId FROM ContentVersion WHERE Id = ':cvId']]></salesforce:salesforce-query>
+			<salesforce:parameters><![CDATA[#[output application/java
 ---
 {
 	cvId : payload.items[0].id
 }]]]></salesforce:parameters>
 		</salesforce:query>
-		<ee:transform doc:name="Link FIle To Case" doc:id="ada71c9c-9c88-4063-ba7e-440019e4da8e" >
-			<ee:message >
-				<ee:set-payload ><![CDATA[%dw 2.0
+		<ee:transform doc:name="Link FIle To Case" doc:id="ada71c9c-9c88-4063-ba7e-440019e4da8e">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
 output application/java
 ---
 payload map ( payload01 , indexOfPayload01 ) -> {
@@ -653,14 +691,29 @@ payload map ( payload01 , indexOfPayload01 ) -> {
 }]]></ee:set-payload>
 			</ee:message>
 		</ee:transform>
-		<salesforce:upsert doc:name="Link Into ContentDocumentLink" doc:id="0b0dbd68-49d4-4aa2-9047-027b2b297afa" config-ref="Salesforce_Config" objectType="ContentDocumentLink" externalIdFieldName="Id"/>
-		<choice doc:name="Choice" doc:id="ee76ea36-d948-4841-8ee2-64aaa241765d" >
+		<salesforce:upsert doc:name="Link Into ContentDocumentLink" doc:id="0b0dbd68-49d4-4aa2-9047-027b2b297afa" config-ref="Salesforce_Config" objectType="ContentDocumentLink" externalIdFieldName="Id" />
+		<choice doc:name="Choice" doc:id="ee76ea36-d948-4841-8ee2-64aaa241765d">
 			<when expression="#[payload.successful == false]">
-				<set-variable value="#[payload]" doc:name="Set FileFailed" doc:id="545f538a-04f5-4ac9-95aa-8615715f53af" variableName="FileSuccess"/>
+				<set-variable value="#[payload]" doc:name="Set FileFailed" doc:id="545f538a-04f5-4ac9-95aa-8615715f53af" variableName="FileSuccess" />
 			</when>
 			<otherwise>
-				<set-variable value="true" doc:name="Set FileSuccess" doc:id="a90e28a1-24e4-4e64-a1a7-cc149d95bec0" variableName="FileSuccess"/>
+				<set-variable value="true" doc:name="Set FileSuccess" doc:id="a90e28a1-24e4-4e64-a1a7-cc149d95bec0" variableName="FileSuccess" />
 			</otherwise>
 		</choice>
+		<error-handler>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="2ee72991-90d7-4c88-8948-8f218d399e15">
+				<ee:transform doc:name="Unknown Error" doc:id="4a1990d9-1b3a-4624-bc70-f7dc4d6099ab">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Unknown error.",
+	details: error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
 	</flow>
 </mule>
