@@ -249,6 +249,7 @@ payload.parts]]></ee:set-variable>
         </ee:transform>
 		<set-variable value='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;  	fileContent : payload.File.content,&#10;  	fileName : payload.File.headers."Content-Disposition".filename&#10;  }]' doc:name="Set File" doc:id="89ce5d47-72c4-47a7-a4ef-9003b33e5481" variableName="File" />
 		<set-variable value="#[attributes.uriParams.id]" doc:name="Set Case Id" doc:id="a31fc1ab-3a6a-4cb8-82ee-84f4e76c6c9a" variableName="CaseId" />
+		<set-variable value='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;  	fileContent : vars.Id.File.content,&#10;  	fileName : vars.Id.File.headers."Content-Disposition".filename&#10;  }]' doc:name="Set File" doc:id="31a496b2-9220-4a4a-b000-3c66cd48bb06" variableName="File"/>
 		<flow-ref doc:name="Flow UploadFile" doc:id="d768f63f-ac2d-411f-becf-0fe4910039fe" name="UploadFile"/>
 		<choice doc:name="Choice" doc:id="9af25a5a-ea01-4ddd-b71a-d80505f0760a" >
 			<when expression="#[vars.FileSuccess ~= false]">
