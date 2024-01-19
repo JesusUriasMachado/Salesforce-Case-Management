@@ -645,17 +645,23 @@ output application/json
 			</on-error-propagate>
 		</error-handler>
     </flow>
-    <flow name="post:\import:application\csv:sf-system-api-config">
-        <ee:transform doc:name="Transform Message">
+    <flow name="post:\import:multipart\form-data:sf-system-api-config">
+		<ee:transform doc:name="Transform Message">
             <ee:message>
                 <ee:set-payload><![CDATA[%dw 2.0
 output application/json
 ---
-{
-  message: "Cases Imported"
-} as Object {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
+payload.parts]]></ee:set-payload>
             </ee:message>
         </ee:transform>
+		<ee:transform doc:name="Transform Message" doc:id="019f663a-a535-4009-ae4a-161a5baf25a4" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload.File.content]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
     </flow>
 	<flow name="UploadFile" doc:id="b54cd6eb-4fed-467e-bc6f-905800f754dc">
 		<ee:transform doc:name="Set File To Binary-Salesforce" doc:id="56255a61-c8bb-413f-8ab2-f080f38ca853">

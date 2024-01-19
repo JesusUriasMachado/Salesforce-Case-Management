@@ -101,8 +101,8 @@ traits:
     description: Used To Import Cases
     displayName: Import Cases
     body:
-      application/csv:
-        example: !include examples/import/post.csv
+      multipart/form-data:
+        type: !include datatypes/case/csv.raml
     responses:
       201:
         body:
