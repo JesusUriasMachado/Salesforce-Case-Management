@@ -646,7 +646,7 @@ output application/json
 		</error-handler>
     </flow>
     <flow name="post:\import:multipart\form-data:sf-system-api-config">
-		<ee:transform doc:name="Transform Message">
+		<ee:transform doc:name="Read Payload Parts">
             <ee:message>
                 <ee:set-payload><![CDATA[%dw 2.0
 output application/json
@@ -654,15 +654,88 @@ output application/json
 payload.parts]]></ee:set-payload>
             </ee:message>
         </ee:transform>
-		<ee:transform doc:name="Transform Message" doc:id="019f663a-a535-4009-ae4a-161a5baf25a4" >
+		<set-payload value="#[%dw 2.0&#10;output application/csv quoteValues=true, header=true&#10;---&#10;payload.File.content]" doc:name="Set CSV" doc:id="e9cea72f-fffb-4709-833e-a493c6d6c788" />
+		<salesforce:create-job-bulk-api-v2 objectType="Case" operation="upsert" doc:name="Create job bulk api v 2" doc:id="265cfabd-bd16-42b3-a358-f36b98d32242" config-ref="Salesforce_Config" lineEnding="CRLF" externalIdFieldName="ID"/>
+		<set-variable value="#[payload.id]" doc:name="Set JobId" doc:id="fa121f2a-31b1-43e4-9d2a-6263e593a4e3" variableName="JobId"/>
+		<flow-ref doc:name="Flow MonitorBulk" doc:id="96fd646b-4041-41e0-afde-82e31e0dd50c" name="MonitorBulk"/>
+		<salesforce:retrieve-job-failed-results-bulk-v2 doc:name="Retrieve job failed results bulk v 2" doc:id="b4008f1c-1de9-4041-8cbd-75b2ef3589bf" config-ref="Salesforce_Config" id="#[vars.JobId]"/>
+		<set-variable value="#[payload]" doc:name="Set Failed Jobs" doc:id="54a3cb47-8834-4a3f-9511-30f8e86e19ea" variableName="FailedJobs"/>
+		<salesforce:retrieve-job-successful-results-bulk-v2 doc:name="Retrieve job successful results bulk v 2" doc:id="9acb9d1f-8b6c-440c-8345-9342fe0218f8" config-ref="Salesforce_Config" id="#[vars.JobId]"/>
+		<set-variable value="#[payload]" doc:name="Set SuccessfulJobs" doc:id="436f8cbe-bb7e-4236-9188-b9ab69f3ba07" variableName="SuccessfulJobs"/>
+		<ee:transform doc:name="Data Imported" doc:id="ecdd246e-2fd9-497b-b303-20d6d0dec55f" >
 			<ee:message >
 				<ee:set-payload ><![CDATA[%dw 2.0
 output application/json
 ---
-payload.File.content]]></ee:set-payload>
+{
+	message: "Data imported.",
+	successful: sizeOf(vars.SuccessfulJobs),
+	failed: sizeOf(vars.FailedJobs)
+}]]></ee:set-payload>
 			</ee:message>
 		</ee:transform>
+		<remove-variable doc:name="Remove Successful Jobs" doc:id="e916c30b-f494-4ec3-812f-37885d74a749" variableName="SuccessfulJobs"/>
+		<remove-variable doc:name="Remove Failed Jobs" doc:id="a3bb3b3d-ae18-451f-a0e0-10eac8437b05" variableName="FailedJobs"/>
     </flow>
+	<flow name="MonitorBulk" doc:id="e786f860-7750-4ac6-a1f6-9a1989b8f36e" >
+		<until-successful maxRetries="5" doc:name="Until Successful" doc:id="baa5d299-3e9b-4f23-9c7a-cb129ddaa6e5" millisBetweenRetries="5000">
+			<try doc:name="Try" doc:id="51247d34-47a5-45a9-82f0-ffd462f7983c" >
+				<salesforce:get-job-state-bulk-api-v2 doc:name="Get job state bulk api v 2" doc:id="99b05f3e-ab50-46ca-be5f-c0b4d0543013" config-ref="Salesforce_Config" id="#[vars.JobId]"/>
+				<choice doc:name="Choice" doc:id="87d18548-3375-4c53-aaac-fd5a50bda819">
+				<when expression='#[payload.state == "JobComplete"]'>
+						<logger level="INFO" doc:name="Logger" doc:id="4074c38a-9605-4c44-a683-707ccb735a65" message="--- B U L K C O M P L E T E D ---"/>
+					</when>
+					<otherwise >
+						<raise-error doc:name="Raise error" doc:id="59dffd2a-209c-4112-9ad8-70fbc609012d" type="CUSTOM:BULK"/>
+					</otherwise>
+			</choice>
+				<error-handler >
+					<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="c40617ed-329b-4b36-b746-88ef26c322c4" type="CUSTOM:BULK">
+						<ee:transform doc:name="Bulk Failed" doc:id="65ce9988-53d7-4afd-93a0-3e41f09a8946" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Bulk failed.",
+	details: payload.items.exception.message
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<set-variable value="400" doc:name="Set httpStatus" doc:id="ff83d899-c42f-4ce9-adb7-521b479a1d3a" variableName="httpStatus"/>
+					</on-error-propagate>
+					<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="2914be9f-4589-4701-8724-1d6c7265735b" >
+						<ee:transform doc:name="Transform Message" doc:id="867d80a2-e16a-44f1-8959-60a943f2f4c8" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Unkwown error.",
+	details: error.description
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+					</on-error-propagate>
+				</error-handler>
+			</try>
+		</until-successful>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="e888699c-4c16-48b6-a7ea-183c749532e6" >
+				<ee:transform doc:name="Unknown Error" doc:id="65432eb3-6b5c-4a28-b93c-c299acd1f8ae" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Unknown error.",
+	details: error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
 	<flow name="UploadFile" doc:id="b54cd6eb-4fed-467e-bc6f-905800f754dc">
 		<ee:transform doc:name="Set File To Binary-Salesforce" doc:id="56255a61-c8bb-413f-8ab2-f080f38ca853">
 			<ee:message>
